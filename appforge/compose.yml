@@ -1,0 +1,44 @@
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: appforge
+      POSTGRES_USER: appforge
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run scripts/configure.py first}
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U appforge -d appforge']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  migrate:
+    build: ./backend
+    env_file: .env
+    command: [alembic, upgrade, head]
+    depends_on:
+      postgres: {condition: service_healthy}
+  api:
+    build: ./backend
+    env_file: .env
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    volumes:
+      - ./packages:/packages:ro
+    restart: unless-stopped
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=10)"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+  web:
+    image: nginx:stable-alpine
+    ports: ['127.0.0.1:8080:80']
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on: [api]
+    restart: unless-stopped
+volumes:
+  postgres-data:
