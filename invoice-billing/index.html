@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Biller — Invoice maker</title>
+  <style>
+    :root {
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      color: #18212f;
+      background: #f4f6f8;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 32px 16px;
+    }
+
+    main {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    header, .toolbar, .totals {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    header { margin-bottom: 20px; }
+
+    h1 { margin: 0; font-size: 1.6rem; }
+    p { color: #687386; }
+
+    .sheet {
+      background: white;
+      border: 1px solid #e1e5eb;
+      border-radius: 12px;
+      padding: 32px;
+      box-shadow: 0 8px 28px #1720330b;
+    }
+
+    .top-grid, .details-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-bottom: 28px;
+    }
+
+    .details-grid { margin-top: 28px; }
+
+    label {
+      display: block;
+      margin: 0 0 6px;
+      color: #687386;
+      font-size: .82rem;
+      font-weight: 600;
+    }
+
+    input, textarea, select {
+      width: 100%;
+      padding: 10px 11px;
+      border: 1px solid #d9dee7;
+      border-radius: 7px;
+      font: inherit;
+      color: inherit;
+      background: #fff;
+    }
+
+    textarea { min-height: 82px; resize: vertical; }
+
+    .field { margin-bottom: 12px; }
+
+    .invoice-meta {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+    }
+
+    th {
+      text-align: left;
+      color: #687386;
+      font-size: .78rem;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+
+    th, td {
+      padding: 9px 6px;
+      border-bottom: 1px solid #e9edf2;
+    }
+
+    td input { min-width: 55px; }
+    .item-description { min-width: 150px; }
+    .amount { text-align: right; white-space: nowrap; }
+    .remove { border: 0; background: none; color: #a33434; cursor: pointer; }
+
+    button {
+      padding: 10px 14px;
+      border: 1px solid #d9dee7;
+      border-radius: 7px;
+      background: #fff;
+      color: #18212f;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    button.primary {
+      color: white;
+      background: #245fe5;
+      border-color: #245fe5;
+    }
+
+    button:hover { filter: brightness(.97); }
+
+    .toolbar { margin-top: 20px; flex-wrap: wrap; }
+    .toolbar-group { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    .totals {
+      max-width: 360px;
+      margin: 20px 0 0 auto;
+      padding: 8px 0;
+    }
+
+    .grand-total {
+      border-top: 2px solid #18212f;
+      font-size: 1.2rem;
+      font-weight: 700;
+    }
+
+    .status {
+      min-height: 1.4em;
+      color: #28734a;
+      font-size: .9rem;
+    }
+
+    @media (max-width: 640px) {
+      body { padding: 16px 10px; }
+      .sheet { padding: 18px 14px; }
+      .top-grid, .details-grid { grid-template-columns: 1fr; gap: 10px; }
+      .invoice-meta { grid-template-columns: 1fr 1fr; }
+      table { font-size: .86rem; }
+      th, td { padding: 7px 3px; }
+      .item-description { min-width: 105px; }
+    }
+
+    @media print {
+      body { padding: 0; background: white; }
+      header, .toolbar, .status, .remove, #addItem { display: none !important; }
+      main { max-width: none; }
+      .sheet { border: 0; box-shadow: none; padding: 0; }
+      input, textarea, select {
+        border: 0;
+        padding: 2px 0;
+        appearance: none;
+      }
+      textarea { resize: none; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Biller</h1>
+        <p>Create a clean invoice and print it or save it as a PDF.</p>
+      </div>
+    </header>
+
+    <section class="sheet" id="invoice">
+      <div class="top-grid">
+        <div>
+          <div class="field">
+            <label for="businessName">Your business</label>
+            <input id="businessName" placeholder="Your business name">
+          </div>
+          <div class="field">
+            <label for="businessDetails">Business details</label>
+            <textarea id="businessDetails" placeholder="Address, email, phone"></textarea>
+          </div>
+        </div>
+
+        <div>
+          <h2>INVOICE</h2>
+          <div class="invoice-meta">
+            <div class="field">
+              <label for="invoiceNumber">Invoice #</label>
+              <input id="invoiceNumber" value="INV-001">
+            </div>
+            <div class="field">
+              <label for="currency">Currency</label>
+              <select id="currency">
+                <option value="USD">USD ($)</option>
+                <option value="EUR">EUR (€)</option>
+                <option value="GBP">GBP (£)</option>
+                <option value="CAD">CAD ($)</option>
+                <option value="AUD">AUD ($)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="invoiceDate">Invoice date</label>
+              <input id="invoiceDate" type="date">
+            </div>
+            <div class="field">
+              <label for="dueDate">Due date</label>
+              <input id="dueDate" type="date">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="details-grid">
+        <div class="field">
+          <label for="customerName">Bill to</label>
+          <input id="customerName" placeholder="Customer or company name">
+        </div>
+        <div class="field">
+          <label for="customerDetails">Customer details</label>
+          <textarea id="customerDetails" placeholder="Address, email"></textarea>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width:48%">Description</th>
+            <th style="width:14%">Qty</th>
+            <th style="width:17%">Rate</th>
+            <th class="amount" style="width:17%">Amount</th>
+            <th class="no-print"></th>
+          </tr>
+        </thead>
+        <tbody id="items"></tbody>
+      </table>
+
+      <button id="addItem" type="button">+ Add line item</button>
+
+      <div class="totals">
+        <span>Subtotal</span>
+        <span id="subtotal">$0.00</span>
+      </div>
+      <div class="totals">
+        <label for="taxRate">Tax rate (%)</label>
+        <input id="taxRate" type="number" min="0" step="0.01" value="0" style="max-width:120px">
+      </div>
+      <div class="totals">
+        <span>Tax</span>
+        <span id="tax">$0.00</span>
+      </div>
+      <div class="totals grand-total">
+        <span>Total</span>
+        <span id="total">$0.00</span>
+      </div>
+
+      <div class="field" style="margin-top:28px">
+        <label for="notes">Notes or payment instructions</label>
+        <textarea id="notes" placeholder="Thank you for your business."></textarea>
+      </div>
+    </section>
+
+    <div class="toolbar">
+      <div class="toolbar-group">
+        <button class="primary" id="printButton" type="button">Print / Save PDF</button>
+        <button id="saveButton" type="button">Save draft</button>
+        <button id="loadButton" type="button">Load draft</button>
+      </div>
+      <span class="status" id="status" aria-live="polite"></span>
+    </div>
+  </main>
+
+  <script>
+    const ids = [
+      "businessName", "businessDetails", "invoiceNumber", "currency",
+      "invoiceDate", "dueDate", "customerName", "customerDetails",
+      "taxRate", "notes"
+    ];
+
+    const itemsElement = document.getElementById("items");
+
+    function addItem(description = "", quantity = 1, rate = 0) {
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td><input class="item-description" aria-label="Description" placeholder="Service or product"></td>
+        <td><input class="item-quantity" aria-label="Quantity" type="number" min="0" step="0.01"></td>
+        <td><input class="item-rate" aria-label="Rate" type="number" min="0" step="0.01"></td>
+        <td class="amount item-amount">—</td>
+        <td><button class="remove" type="button" aria-label="Remove item">×</button></td>
+      `;
+      row.querySelector(".item-description").value = description;
+      row.querySelector(".item-quantity").value = quantity;
+      row.querySelector(".item-rate").value = rate;
+      row.querySelectorAll("input").forEach(input => input.addEventListener("input", updateTotals));
+      row.querySelector(".remove").addEventListener("click", () => {
+        row.remove();
+        updateTotals();
+      });
+      itemsElement.appendChild(row);
+      updateTotals();
+    }
+
+    function money(value) {
+      const currency = document.getElementById("currency").value;
+      try {
+        return new Intl.NumberFormat(undefined, {
+          style: "currency", currency
+        }).format(value);
+      } catch {
+        return value.toFixed(2);
+      }
+    }
+
+    function updateTotals() {
+      let subtotal = 0;
+      document.querySelectorAll("#items tr").forEach(row => {
+        const qty = Number(row.querySelector(".item-quantity").value) || 0;
+        const rate = Number(row.querySelector(".item-rate").value) || 0;
+        const amount = qty * rate;
+        subtotal += amount;
+        row.querySelector(".item-amount").textContent = money(amount);
+      });
+      const taxRate = Number(document.getElementById("taxRate").value) || 0;
+      const tax = subtotal * taxRate / 100;
+      document.getElementById("subtotal").textContent = money(subtotal);
+      document.getElementById("tax").textContent = money(tax);
+      document.getElementById("total").textContent = money(subtotal + tax);
+    }
+
+    function getDraft() {
+      return {
+        fields: Object.fromEntries(ids.map(id => [id, document.getElementById(id).value])),
+        items: [...document.querySelectorAll("#items tr")].map(row => ({
+          description: row.querySelector(".item-description").value,
+          quantity: row.querySelector(".item-quantity").value,
+          rate: row.querySelector(".item-rate").value
+        }))
+      };
+    }
+
+    function setStatus(message) {
+      document.getElementById("status").textContent = message;
+      setTimeout(() => document.getElementById("status").textContent = "", 2500);
+    }
+
+    const STORAGE_KEY = "biller-draft";
+
+    function formatDateInput(date) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+
+    document.getElementById("addItem").addEventListener("click", () => addItem());
+    document.getElementById("currency").addEventListener("change", updateTotals);
+    document.getElementById("taxRate").addEventListener("input", updateTotals);
+    document.getElementById("printButton").addEventListener("click", () => window.print());
+
+    document.getElementById("saveButton").addEventListener("click", () => {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(getDraft()));
+        setStatus("Draft saved in this browser.");
+      } catch (error) {
+        setStatus("Unable to save draft in this browser.");
+      }
+    });
+
+    document.getElementById("loadButton").addEventListener("click", () => {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (!saved) return setStatus("No saved draft found.");
+
+        const draft = JSON.parse(saved);
+        if (!draft || typeof draft !== "object") {
+          throw new Error("Invalid draft format.");
+        }
+
+        const fields = draft.fields && typeof draft.fields === "object" ? draft.fields : {};
+        Object.entries(fields).forEach(([id, value]) => {
+          if (document.getElementById(id)) {
+            document.getElementById(id).value = value ?? "";
+          }
+        });
+
+        itemsElement.innerHTML = "";
+        const items = Array.isArray(draft.items) ? draft.items : [];
+        items.forEach(item => addItem(
+          item && typeof item.description === "string" ? item.description : "",
+          Number(item && item.quantity) || 0,
+          Number(item && item.rate) || 0
+        ));
+
+        if (!items.length) addItem();
+        updateTotals();
+        setStatus("Draft loaded.");
+      } catch (error) {
+        setStatus("Saved draft could not be loaded.");
+      }
+    });
+
+    // Set today's date and a default due date 14 days later.
+    const today = new Date();
+    const due = new Date(today);
+    due.setDate(due.getDate() + 14);
+    document.getElementById("invoiceDate").value = formatDateInput(today);
+    document.getElementById("dueDate").value = formatDateInput(due);
+
+    addItem();
+  </script>
+</body>
+</html>
