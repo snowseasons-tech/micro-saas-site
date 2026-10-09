@@ -1,0 +1,12 @@
+{
+  "name": "scalekit-storefront",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "mkdir -p dist/assets && tailwindcss --input ./src/tailwind.css --output ./dist/assets/tailwind.css --minify && cp index.html dist/index.html"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "4.3.0",
+    "tailwindcss": "4.3.0"
+  }
+}
