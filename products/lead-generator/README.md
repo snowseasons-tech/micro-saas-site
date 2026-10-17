@@ -45,7 +45,9 @@ cron line in the header of `run_pipeline.sh`.
 - To re-scrape a lead, clear its `scrape_status` cell.
 
 `scrape_status` values: `ok`, `no_contacts`, `blocked` (403/429), `robots_disallowed`,
-`error: ...` (network errors; retried up to 3 total attempts).
+`error: ...` (network errors, or a site that used up its 2-minute time limit; retried up to 3
+total attempts). `error: interrupted` means the run was killed while scraping that site; it is
+retried after the untried leads, like any other error.
 
 ## `contacts.csv` columns
 

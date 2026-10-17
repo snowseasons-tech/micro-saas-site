@@ -19,7 +19,8 @@ exec 9>.blogen.lock
 flock -n 9 || { echo "blogen already running, exiting" >&2; exit 0; }
 
 log="logs/$(date +%F_%H%M%S).log"
-if node blogen.mjs "$@" >"$log" 2>&1; then
+# Hard cap on the whole run so a stalled site can't hold the lock forever (exit 124 = timed out).
+if timeout "${BLOGEN_TIMEOUT:-2h}" node blogen.mjs "$@" >"$log" 2>&1; then
   echo "ok: $log"
 else
   rc=$?; echo "FAILED (rc=$rc): $log" >&2; tail -n 20 "$log" >&2; exit "$rc"

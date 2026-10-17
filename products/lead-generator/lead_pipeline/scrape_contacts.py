@@ -17,7 +17,11 @@ Behaviour worth knowing:
     you contacts for the wrong company.
   * Network errors are retried on later runs (3 attempts total). To force a
     re-scrape of a lead, clear its scrape_status cell in leads.csv.
-  * Progress is saved after every site, so a timeout/kill loses nothing.
+  * Each site gets --site-timeout seconds in total (default 120), so a slow or
+    trickling server can't stall the run. Partial results are kept.
+  * Progress is saved after every site, so a timeout/kill loses nothing. An attempt
+    is recorded before a site is fetched, so a site that gets the run killed is
+    retried after the others and dropped after 3 attempts.
   * Set SCRAPER_USER_AGENT to something that identifies you (with contact info).
 """
 from __future__ import annotations
@@ -43,6 +47,7 @@ DEFAULT_UA = os.environ.get("SCRAPER_USER_AGENT", "Mozilla/5.0 (compatible; Lead
 CONF_RANK = {"low": 0, "medium": 1, "high": 2, "manual": 3}
 MAX_ATTEMPTS = 3
 MAX_BYTES = 2_000_000
+MAX_ROBOTS_BYTES = 500_000
 MAX_PEOPLE_PER_SITE = 25
 
 
@@ -55,6 +60,10 @@ class FetchError(Exception):
     def __init__(self, msg: str, blocked: bool = False):
         super().__init__(msg)
         self.blocked = blocked
+
+
+class SiteTimeout(FetchError):
+    """The site used up its total time budget (requests' timeout is per read, not per download)."""
 
 
 @dataclass
@@ -73,8 +82,25 @@ class Fetcher:
             "Accept-Language": "en-US,en;q=0.8",
         })
         self.timeout, self.delay = timeout, delay
+        self.deadline: float | None = None    # monotonic time; set per site by scrape_site
         self._robots: dict[str, robotparser.RobotFileParser] = {}
         self._last: dict[str, float] = {}
+
+    def _check_deadline(self) -> None:
+        if self.deadline is not None and time.monotonic() > self.deadline:
+            raise SiteTimeout("site time limit reached")
+
+    def _read(self, r: requests.Response, limit: int) -> bytes:
+        # read1() returns after a single socket read; iter_content(n) would wait for a full n bytes,
+        # so a server sending a byte at a time could hold one read for hours before the deadline check.
+        data = b""
+        while len(data) <= limit:
+            self._check_deadline()
+            chunk = r.raw.read1(65536, decode_content=True)
+            if not chunk:
+                break
+            data += chunk
+        return data
 
     def _wait(self, netloc: str, crawl_delay: float = 0.0) -> None:
         last = self._last.get(netloc)
@@ -89,13 +115,18 @@ class Fetcher:
         if origin not in self._robots:
             rp = robotparser.RobotFileParser()
             self._wait(p.netloc)
+            self._check_deadline()
             try:
-                r = self.session.get(origin + "/robots.txt", timeout=self.timeout)
+                r = self.session.get(origin + "/robots.txt", timeout=self.timeout, stream=True)
+                try:
+                    body = self._read(r, MAX_ROBOTS_BYTES) if r.status_code == 200 else b""
+                finally:
+                    r.close()
             except requests.RequestException as e:
                 raise FetchError(f"robots.txt unreachable ({type(e).__name__})")
             self._last[p.netloc] = time.monotonic()
             if r.status_code == 200:
-                rp.parse(r.text.splitlines())
+                rp.parse(body.decode(r.encoding or "utf-8", "replace").splitlines())
                 rp.modified()
             elif r.status_code >= 500:
                 rp.disallow_all = True      # RFC 9309: server error => assume disallowed
@@ -115,6 +146,7 @@ class Fetcher:
             delay = rp.crawl_delay(ROBOT_TOKEN) or rp.crawl_delay("*")
             netloc = urlparse(url).netloc
             self._wait(netloc, min(float(delay), 10.0) if delay else 0.0)
+            self._check_deadline()
             try:
                 r = self.session.get(url, timeout=self.timeout, stream=True, allow_redirects=False)
             except requests.RequestException as e:
@@ -127,12 +159,7 @@ class Fetcher:
                 ctype = r.headers.get("Content-Type", "").lower()
                 if r.status_code != 200 or (ctype and "html" not in ctype and "xml" not in ctype):
                     return Page(url, r.status_code, b"")
-                data = b""
-                for chunk in r.iter_content(65536):
-                    data += chunk
-                    if len(data) > MAX_BYTES:
-                        break
-                return Page(url, 200, data)
+                return Page(url, 200, self._read(r, MAX_BYTES))
             except requests.RequestException as e:
                 raise FetchError(type(e).__name__)
             finally:
@@ -324,7 +351,8 @@ def rank_links(soup: BeautifulSoup, base_url: str) -> list[str]:
     return [u for u, _ in sorted(found.items(), key=lambda kv: kv[1])]
 
 
-def scrape_site(fetcher: Fetcher, website: str, max_pages: int) -> dict:
+def scrape_site(fetcher: Fetcher, website: str, max_pages: int, site_timeout: float = 120.0) -> dict:
+    fetcher.deadline = time.monotonic() + site_timeout
     home = fetcher.get(website)
     if home.status != 200:
         raise FetchError(f"HTTP {home.status}", blocked=home.status in (401, 403, 429))
@@ -362,6 +390,8 @@ def scrape_site(fetcher: Fetcher, website: str, max_pages: int) -> dict:
     for url in queue:
         try:
             page = fetcher.get(url)
+        except SiteTimeout:
+            break                                   # keep what the home page and earlier pages gave us
         except (FetchError, RobotsDisallowed):
             continue
         if page.status == 200:
@@ -419,6 +449,7 @@ def main() -> int:
     ap.add_argument("--delay", type=float, default=1.5, help="seconds between requests to one site")
     ap.add_argument("--max-pages", type=int, default=6, help="max pages fetched per site")
     ap.add_argument("--timeout", type=float, default=15.0, help="per-request timeout, seconds")
+    ap.add_argument("--site-timeout", type=float, default=120.0, help="total time allowed per site, seconds")
     ap.add_argument("--min-confidence", choices=list(CONF_RANK),
                     default=os.environ.get("SCRAPE_MIN_CONFIDENCE", "medium"))
     ap.add_argument("--user-agent", default=DEFAULT_UA)
@@ -476,8 +507,12 @@ def main() -> int:
         stamp = c.now()
         attempts = int(lead["scrape_attempts"]) if lead.get("scrape_attempts", "").isdigit() else 0
         rows: list[dict] = []
+        # Record the attempt first: if this site gets the run killed, it is retried after the others
+        # and given up on after MAX_ATTEMPTS, instead of blocking the front of the queue every night.
+        lead.update(scraped_at=stamp, scrape_status="error: interrupted", scrape_attempts=str(attempts + 1))
+        c.write_csv_atomic(c.LEADS, c.LEAD_FIELDS, leads)
         try:
-            scraped = scrape_site(fetcher, lead["website"], args.max_pages)
+            scraped = scrape_site(fetcher, lead["website"], args.max_pages, args.site_timeout)
             rows = build_rows(lead, scraped, stamp)
             status = "ok" if rows else "no_contacts"
             if not lead.get("phone") and scraped["phones"]:

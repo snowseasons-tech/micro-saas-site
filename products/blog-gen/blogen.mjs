@@ -32,6 +32,18 @@ const SEEN_FILE = path.join(OUT, '.seen.json');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80);
 const log = (...a) => console.error('[blogen]', ...a);
+const FETCH_TIMEOUT_MS = cfg.fetchTimeoutMs ?? 30000;
+const timeoutSignal = () => AbortSignal.timeout(FETCH_TIMEOUT_MS); // covers the body read, not just the headers
+
+// Scraped text is untrusted: marked passes raw HTML through, so escape every Markdown/HTML
+// special character (rendered as plain text) and only allow http(s) links.
+const mdEscape = (s) => String(s ?? '').replace(/\s+/g, ' ').trim().replace(/[\\`*_{}\[\]()#+!|<>&~]/g, '\\$&');
+function safeUrl(u) {
+  try {
+    const x = new URL(u);
+    return ['http:', 'https:'].includes(x.protocol) ? x.href.replace(/[()]/g, (ch) => (ch === '(' ? '%28' : '%29')) : null;
+  } catch { return null; }
+}
 
 // ---------- Politeness: robots.txt + rate limit ----------
 const robotsCache = new Map();
@@ -39,7 +51,7 @@ async function allowed(url) {
   const { origin } = new URL(url);
   if (!robotsCache.has(origin)) {
     try {
-      const res = await fetch(`${origin}/robots.txt`, { headers: { 'user-agent': UA } });
+      const res = await fetch(`${origin}/robots.txt`, { headers: { 'user-agent': UA }, signal: timeoutSignal() });
       robotsCache.set(origin, robotsParser(`${origin}/robots.txt`, res.ok ? await res.text() : ''));
     } catch { robotsCache.set(origin, robotsParser(`${origin}/robots.txt`, '')); }
   }
@@ -71,7 +83,7 @@ async function fetchHtml(url) {
   if (!(await allowed(url))) { log('blocked by robots.txt, skipping', url); return null; }
   await throttle();
   if (FORCE_BROWSER) return fetchWithBrowser(url);
-  const res = await fetch(url, { headers: { 'user-agent': UA, accept: 'text/html,application/xml' }, redirect: 'follow' });
+  const res = await fetch(url, { headers: { 'user-agent': UA, accept: 'text/html,application/xml' }, redirect: 'follow', signal: timeoutSignal() });
   if (!res.ok) { log(`HTTP ${res.status}`, url); return null; }
   const html = await res.text();
   // Looks like a JS shell? Retry with a real browser if available.
@@ -100,7 +112,7 @@ async function discover(src) {
       if (h) { try { links.push(new URL(h, src.url).href); } catch {} }
     });
   }
-  return [...new Set(links)].slice(0, limit);
+  return [...new Set(links.map(safeUrl).filter(Boolean))].slice(0, limit);
 }
 
 // ---------- Extraction ----------
@@ -111,7 +123,8 @@ function extract(html, url) {
 
   const title = meta('og:title') || $('h1').first().text().trim() || $('title').text().trim();
   const description = meta('og:description') || meta('description') || '';
-  const image = meta('og:image') ? new URL(meta('og:image'), url).href : null;
+  let image = null;
+  try { image = meta('og:image') ? safeUrl(new URL(meta('og:image'), url).href) : null; } catch {}
   const date = meta('article:published_time') || $('time[datetime]').first().attr('datetime') || null;
   const author = meta('author') || $('[rel="author"]').first().text().trim() || null;
   const site = meta('og:site_name') || new URL(url).hostname.replace(/^www\./, '');
@@ -172,21 +185,21 @@ function renderPost(topic, items, commentary, template) {
   const tags = [...new Set([...(topic.tags || []), ...items.flatMap((i) => i.terms.slice(0, 2))])].slice(0, 8);
   const fm = `---\ntitle: "${topic.name} — ${date}"\ndate: ${date}\ndraft: ${STATUS === 'draft'}\ntags: [${tags.join(', ')}]\nsources: ${items.length}\n---\n`;
 
-  const intro = `This edition covers ${items.length} recent ${items.length === 1 ? 'piece' : 'pieces'} from ${[...new Set(items.map((i) => i.site))].join(', ')}. Each entry below is a short summary with a link to the original; read the source for the full story.\n`;
+  const intro = `This edition covers ${items.length} recent ${items.length === 1 ? 'piece' : 'pieces'} from ${[...new Set(items.map((i) => mdEscape(i.site)))].join(', ')}. Each entry below is a short summary with a link to the original; read the source for the full story.\n`;
 
   const sections = items.map((it, idx) => {
-    const bullets = it.summary.map((s) => `- ${s}`).join('\n');
+    const bullets = it.summary.map((s) => `- ${mdEscape(s)}`).join('\n');
     // Short quoted excerpt: use the page description unless it just repeats a key point.
     const excerptSrc = it.description && !it.summary.some((x) => x.startsWith(it.description.slice(0, 40))) ? it.description : '';
     const excerpt = excerptSrc ? clip(excerptSrc, MAX_EXCERPT) : '';
     return [
-      `## ${idx + 1}. ${it.title}`,
-      it.image ? `![${it.title}](${it.image})\n` : '',
-      `*${it.site}${it.author ? ` · ${it.author}` : ''}${it.date ? ` · ${it.date.slice(0, 10)}` : ''}*\n`,
+      `## ${idx + 1}. ${mdEscape(it.title)}`,
+      it.image ? `![${mdEscape(it.title)}](${it.image})\n` : '',
+      `*${mdEscape(it.site)}${it.author ? ` · ${mdEscape(it.author)}` : ''}${it.date ? ` · ${mdEscape(it.date.slice(0, 10))}` : ''}*\n`,
       `**Key points**\n\n${bullets}\n`,
-      excerpt ? `> ${excerpt}\n` : '',
-      `Topics: ${it.terms.join(', ')}\n`,
-      `[Read the original at ${it.site} →](${it.url})\n`,
+      excerpt ? `> ${mdEscape(excerpt)}\n` : '',
+      `Topics: ${it.terms.map(mdEscape).join(', ')}\n`,
+      `[Read the original at ${mdEscape(it.site)} →](${it.url})\n`,
     ].filter(Boolean).join('\n');
   });
 
@@ -198,7 +211,7 @@ function renderPost(topic, items, commentary, template) {
     intro,
     commentary: commentary ? `## Editor's take\n\n${commentary.trim()}\n` : '',
     items: sections.join('\n---\n\n'),
-    sources: items.map((i) => `- [${i.title}](${i.url}) (${i.site})`).join('\n'),
+    sources: items.map((i) => `- [${mdEscape(i.title)}](${i.url}) (${mdEscape(i.site)})`).join('\n'),
   };
   return (template || DEFAULT_TPL).replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] ?? '');
 }
@@ -211,7 +224,7 @@ hr{border:0;border-top:1px solid #8884;margin:2rem 0}a{color:#2563eb}</style></h
 
 // ---------- Publishing ----------
 async function postJson(url, headers, body) {
-  const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) });
+  const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body), signal: timeoutSignal() });
   const text = await res.text();
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 300)}`);
   return JSON.parse(text);
@@ -256,6 +269,7 @@ const publishers = {
 await fs.mkdir(OUT, { recursive: true });
 const seen = new Set(JSON.parse(await fs.readFile(SEEN_FILE, 'utf8').catch(() => '[]')));
 const built = [];
+let publishFailures = 0;
 const template = cfg.template ? await fs.readFile(cfg.template, 'utf8') : null;
 const globalCommentary = COMMENTARY_FILE ? await fs.readFile(COMMENTARY_FILE, 'utf8') : null;
 if (PUBLISH && !publishers[PUBLISH]) { log('unknown --publish target:', PUBLISH); process.exit(1); }
@@ -264,18 +278,19 @@ for (const topic of cfg.topics) {
   if (ONLY_TOPIC && topic.name !== ONLY_TOPIC) continue;
   log('topic:', topic.name);
   const items = [];
+  const used = []; // marked as seen only once the post is written (and published, with --publish)
   for (const src of topic.sources) {
     let links = [];
     try { links = await discover(src); } catch (e) { log('discover failed', src.url, e.message); }
     for (const url of links) {
-      if (seen.has(url)) { log('already used, skipping', url); continue; }
+      if (seen.has(url) || used.includes(url)) { log('already used, skipping', url); continue; }
       try {
         const html = await fetchHtml(url);
         if (!html) continue;
         const a = extract(html, url);
         if (a.text.length < 400) { log('too little text, skipping', url); continue; }
         items.push({ ...a, summary: summarize(a.text, SUM_N), terms: keyTerms(a.text) });
-        seen.add(url);
+        used.push(url);
         log('ok', a.title);
       } catch (e) { log('failed', url, e.message); }
     }
@@ -295,8 +310,14 @@ for (const topic of cfg.topics) {
       const tags = (md.match(/^tags: \[(.*)\]$/m)?.[1] || '').split(', ').filter(Boolean);
       const where = await publishers[PUBLISH]({ title: `${topic.name} — ${new Date().toISOString().slice(0, 10)}`, slug: base, md, html: bodyHtml, tags });
       log(`published (${STATUS}) via ${PUBLISH}:`, where);
-    } catch (e) { log('publish failed:', e.message); }
+    } catch (e) {
+      // Leave these sources unused so the next run tries again, and exit non-zero so run.sh/cron report it.
+      log('publish failed:', e.message);
+      publishFailures++;
+      continue;
+    }
   }
+  used.forEach((u) => seen.add(u));
   log('wrote', base);
 }
 
@@ -308,3 +329,4 @@ if (!DRY) {
 }
 await browser?.close();
 log(`done: ${built.length} post(s)`);
+if (publishFailures) { log(`${publishFailures} post(s) failed to publish`); process.exitCode = 1; }
