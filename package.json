@@ -1,0 +1,16 @@
+{
+  "name": "snowseasonstech-net",
+  "private": true,
+  "version": "0.1.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "lint": "node --check api/checkout.js && node --check api/webhook.js && node --check api/download.js && node --check api/order.js && node --check api/products.js && node --check api/portal.js && node --check api/login.js && node --check api/logout.js && node --check api/me.js && node --check api/app-download.js && node --check api/_lib/auth.js && node --check api/_lib/mail.js && node --check api/_lib/fulfil.js"
+  },
+  "dependencies": {
+    "@vercel/blob": "^2.8.2",
+    "stripe": "^17.0.0"
+  }
+}

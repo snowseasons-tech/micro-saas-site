@@ -1,0 +1,10 @@
+# Paid product source: delivered only from the private bucket, never deployed.
+products/
+# Dev-only files that should not be public on the site
+tests/
+scripts/
+private-files/
+ecommerce-expert
+.vscode/
+.claude/
+*.md

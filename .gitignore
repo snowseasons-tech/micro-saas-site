@@ -1,0 +1,19 @@
+# Secrets (keep only the template)
+.env
+.env*
+!.env.example
+# Dependencies and local tooling
+node_modules/
+.vercel/
+.vscode/
+.claude/settings.local.json
+private-files/
+# Python build/run output
+.venv/
+__pycache__/
+*.pyc
+# lead-generator run output (scraped data, logs, lock) and its rebuildable zip
+products/lead-generator/**/data/
+products/lead-generator/**/logs/
+products/lead-generator/**/.pipeline.lock
+products/lead-generator/lead_pipeline.zip
