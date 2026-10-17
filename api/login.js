@@ -11,9 +11,13 @@ module.exports = async (req, res) => {
     const email = auth.normEmail(body.email);
     const password = typeof body.password === 'string' ? body.password : '';
     if (!email || email.length > 254 || !password || password.length > 256) return send(res, 400, { error: 'Email and password are required' });
-    if (await auth.loginLimited(auth.clientIp(req), email)) return send(res, 429, { error: 'Too many sign-in attempts. Try again in 15 minutes.' });
+    const ip = auth.clientIp(req);
+    if (await auth.loginLimited(ip, email)) return send(res, 429, { error: 'Too many sign-in attempts. Try again in 15 minutes.' });
     const user = await auth.checkCredentials(email, password);
-    if (!user) return send(res, 401, { error: 'Incorrect email or password' });
+    if (!user) {
+      await auth.recordLoginFailure(ip, email);
+      return send(res, 401, { error: 'Incorrect email or password' });
+    }
     const token = await auth.createSession(email);
     send(res, 200, { email }, { 'Set-Cookie': auth.sessionCookie(token) });
   } catch (e) {

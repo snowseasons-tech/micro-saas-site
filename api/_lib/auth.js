@@ -8,8 +8,11 @@ const COOKIE = 'ss_session';
 const SESSION_TTL_SEC = 8 * 60 * 60;
 const SCRYPT = { N: 16384, r: 8, p: 1, keylen: 64 };
 const LOGIN_WINDOW_SEC = 15 * 60;
+// Failed attempts per window. The per-email ceiling is high so a stranger can't easily lock a customer out;
+// the tight limit is per (ip, email).
 const LOGIN_MAX_PER_IP = 20;
-const LOGIN_MAX_PER_EMAIL = 8;
+const LOGIN_MAX_PER_IP_EMAIL = 8;
+const LOGIN_MAX_PER_EMAIL = 100;
 
 const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
 const normEmail = (e) => String(e || '').trim().toLowerCase();
@@ -45,11 +48,18 @@ async function checkCredentials(email, password, s = store) {
   return (await verifyPassword(password, user.hash)) ? user : null;
 }
 
-// Returns true when the caller is over either limit for the current window.
+const limitKeys = (ip, email) => {
+  const e = sha256(normEmail(email));
+  return [[`rl:login:ip:${ip}`, LOGIN_MAX_PER_IP], [`rl:login:ipemail:${sha256(ip)}:${e}`, LOGIN_MAX_PER_IP_EMAIL], [`rl:login:email:${e}`, LOGIN_MAX_PER_EMAIL]];
+};
+// Returns true when the caller has used up any failed-attempt limit for the current window.
 async function loginLimited(ip, email, s = store) {
-  const byIp = await s.incr(`rl:login:ip:${ip}`, LOGIN_WINDOW_SEC);
-  const byEmail = await s.incr(`rl:login:email:${sha256(normEmail(email))}`, LOGIN_WINDOW_SEC);
-  return byIp > LOGIN_MAX_PER_IP || byEmail > LOGIN_MAX_PER_EMAIL;
+  for (const [key, max] of limitKeys(ip, email)) if ((await s.count(key)) >= max) return true;
+  return false;
+}
+// Only failed sign-ins count, so customers who sign in often are never locked out.
+async function recordLoginFailure(ip, email, s = store) {
+  for (const [key] of limitKeys(ip, email)) await s.incr(key, LOGIN_WINDOW_SEC);
 }
 
 async function createSession(email, s = store) {
@@ -85,6 +95,6 @@ function clientIp(req) {
 }
 
 module.exports = {
-  normEmail, hashPassword, verifyPassword, checkCredentials, loginLimited,
+  normEmail, hashPassword, verifyPassword, checkCredentials, loginLimited, recordLoginFailure,
   createSession, getSession, destroySession, sessionCookie, clearCookie, clientIp,
 };

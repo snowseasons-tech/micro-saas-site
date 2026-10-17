@@ -5,6 +5,7 @@ async function sendMail({ to, subject, text }, env = process.env, fetchImpl = fe
     method: 'POST',
     headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ from: env.MAIL_FROM, to: [to], subject, text }),
+    signal: AbortSignal.timeout(10000),
   });
   if (!r.ok) throw new Error(`mail ${r.status}`);
   return 'sent';

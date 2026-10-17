@@ -20,7 +20,7 @@
   fetch('/api/order?session_id='+encodeURIComponent(id)).then(function(r){return r.json()}).then(function(d){
    if(d.ready){t.textContent='Thank you! '+d.product+' is ready.';m.textContent='Your payment is verified.';if(d.download){dl.href='/api/download?session_id='+encodeURIComponent(id);dl.hidden=false}
    if(d.appUrl){app.href=d.appUrl;app.hidden=false}
-   if(d.manage){mg.hidden=false;mg.onclick=function(){fetch('/api/portal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:id})}).then(function(r){return r.json()}).then(function(x){if(x.url)location.href=x.url;else m.textContent=x.error||'Could not open billing portal'})}}
+   if(d.manage){mg.hidden=false;mg.onclick=function(){fetch('/api/portal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:id})}).then(function(r){return r.json()}).then(function(x){m.textContent=x.sent?'We emailed you a link to manage your subscription. It works for 30 minutes.':(x.error||'Could not open billing portal')})}}
    return}
    if(d.error){t.textContent='Order problem';m.textContent=d.error;return}
    if(++tries>30){t.textContent='Still processing';m.textContent='Your payment may still be clearing. Refresh in a minute, or email info@snowseasonstech.net with your receipt.';return}

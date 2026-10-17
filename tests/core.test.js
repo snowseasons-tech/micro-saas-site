@@ -85,3 +85,18 @@ test('presigned PUT signs the PUT method for the configured bucket', () => {
   const sig = (u) => new URL(u).searchParams.get('X-Amz-Signature');
   assert.notStrictEqual(sig(put), sig(presignFromEnv('bookscan-live/bookscan-live.html', 'x.html', env)));
 });
+
+test('a stuck lease makes Stripe retry instead of being treated as handled, then expires', async () => {
+  const e = ev('evt_lease1'); e.data.object.id = 'cs_test_lease00000001';
+  await store.claim('evt:evt_lease1', 1); // simulate an invocation killed mid-handling
+  await assert.rejects(handleEvent(e), /being processed/);
+  await new Promise((r) => setTimeout(r, 1100));
+  assert.strictEqual(await handleEvent(e), 'fulfilled:skipped');
+  assert.strictEqual(await handleEvent(e), 'duplicate');
+});
+test('a failed release does not block the retry for long', async () => {
+  const flaky = { ...store, setJSON: async () => { throw new Error('store down'); }, release: async () => { throw new Error('store down'); } };
+  const e = ev('evt_flaky1'); e.data.object.id = 'cs_test_flaky00000001';
+  await assert.rejects(handleEvent(e, { store: flaky }), /store down/);
+  await assert.rejects(handleEvent(e), /being processed/); // lease still held, so Stripe gets a 500 and retries
+});

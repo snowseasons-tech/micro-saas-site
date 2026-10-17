@@ -89,16 +89,72 @@ test('session download: failed checks do not use up the allowance; removed produ
   assert.strictEqual((await call(require('../api/order'), { url: `/api/order?session_id=${old}` })).statusCode, 410);
 });
 
-test('remote incr sets the TTL before incrementing', async () => {
+test('remote incr increments and sets the TTL in one atomic call', async () => {
   const sent = [];
   const realFetch = global.fetch;
   Object.assign(process.env, { UPSTASH_REDIS_REST_URL: 'https://kv.example.com', UPSTASH_REDIS_REST_TOKEN: 't' });
-  global.fetch = async (_u, o) => { sent.push(JSON.parse(o.body)); return { ok: true, json: async () => ({ result: sent.length === 1 ? 'OK' : 1 }) }; };
+  global.fetch = async (_u, o) => { sent.push(JSON.parse(o.body)); return { ok: true, json: async () => ({ result: 1 }) }; };
   try {
     assert.strictEqual(await store.incr('rl:x', 900), 1);
-    assert.deepStrictEqual(sent, [['SET', 'rl:x', '0', 'NX', 'EX', '900'], ['INCR', 'rl:x']]);
+    assert.strictEqual(sent.length, 1);
+    const [op, script, nkeys, key, ttl] = sent[0];
+    assert.deepStrictEqual([op, nkeys, key, ttl], ['EVAL', '1', 'rl:x', '900']);
+    assert.match(script, /INCR[\s\S]*TTL[\s\S]*EXPIRE/);
   } finally {
     global.fetch = realFetch;
     delete process.env.UPSTASH_REDIS_REST_URL; delete process.env.UPSTASH_REDIS_REST_TOKEN;
+  }
+});
+
+test('download with broken bucket config does not use up the allowance', async () => {
+  const sid = 'cs_test_badconfig0001';
+  await store.setJSON(`order:${sid}`, { productId: 'bookscan' });
+  const saved = process.env.S3_ENDPOINT;
+  process.env.S3_ENDPOINT = 'not a url';
+  try {
+    for (let i = 0; i < 12; i++) assert.strictEqual((await call(download, { url: `/api/download?session_id=${sid}` })).statusCode, 500);
+  } finally { process.env.S3_ENDPOINT = saved; }
+  assert.strictEqual((await call(download, { url: `/api/download?session_id=${sid}` })).statusCode, 302);
+});
+
+test('only failed sign-ins count, and one IP cannot lock out another', async () => {
+  await store.setJSON('user:often@example.com', { hash: await auth.hashPassword('often-password-1'), products: [] });
+  const from = (ip) => ({ 'x-forwarded-for': ip });
+  for (let i = 0; i < 12; i++) {
+    assert.strictEqual((await call(login, { method: 'POST', body: { email: 'often@example.com', password: 'often-password-1' }, headers: from('10.1.1.1') })).statusCode, 200);
+  }
+  for (let i = 0; i < 9; i++) await call(login, { method: 'POST', body: { email: 'often@example.com', password: 'bad' }, headers: from('10.6.6.6') });
+  assert.strictEqual((await call(login, { method: 'POST', body: { email: 'often@example.com', password: 'often-password-1' }, headers: from('10.6.6.6') })).statusCode, 429);
+  assert.strictEqual((await call(login, { method: 'POST', body: { email: 'often@example.com', password: 'often-password-1' }, headers: from('10.1.1.1') })).statusCode, 200);
+});
+
+test('billing portal: session_id only triggers an email to the buyer; the emailed link opens Stripe', async () => {
+  const stripeMod = require('../api/_lib/stripe');
+  const mailMod = require('../api/_lib/mail');
+  const realStripe = stripeMod.stripeClient, realMail = mailMod.sendMail;
+  const mails = [];
+  stripeMod.stripeClient = () => ({ billingPortal: { sessions: { create: async ({ customer }) => ({ url: `https://billing.stripe.com/p/${customer}` }) } } });
+  mailMod.sendMail = async (m) => (mails.push(m), 'sent');
+  try {
+    delete require.cache[require.resolve('../api/portal')];
+    const portal = require('../api/portal');
+    process.env.SITE_URL = 'https://shop.example.com';
+    const sid = 'cs_test_portal0000001';
+    await store.setJSON(`order:${sid}`, { productId: 'bookscan', email: 'buyer@example.com', customer: 'cus_9', subscriptionId: 'sub_9' });
+
+    const r = await call(portal, { method: 'POST', body: { session_id: sid } });
+    assert.strictEqual(r.statusCode, 200);
+    assert.deepStrictEqual(r.json, { sent: true });
+    assert.strictEqual(mails.length, 1);
+    assert.strictEqual(mails[0].to, 'buyer@example.com');
+    assert.strictEqual((await call(portal, { method: 'POST', body: { session_id: sid } })).statusCode, 429);
+
+    const link = new URL(mails[0].text.match(/https?:\/\/\S+\/api\/portal\?t=\S+/)[0]);
+    const open = await call(portal, { url: link.pathname + link.search });
+    assert.strictEqual(open.statusCode, 302);
+    assert.strictEqual(open.headers.location, 'https://billing.stripe.com/p/cus_9');
+    assert.strictEqual((await call(portal, { url: '/api/portal?t=' + 'x'.repeat(43) })).statusCode, 410);
+  } finally {
+    stripeMod.stripeClient = realStripe; mailMod.sendMail = realMail;
   }
 });

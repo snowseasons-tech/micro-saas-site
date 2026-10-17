@@ -13,6 +13,7 @@ async function cmd(args) {
     method: 'POST',
     headers: { Authorization: `Bearer ${process.env.UPSTASH_REDIS_REST_TOKEN}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(args),
+    signal: AbortSignal.timeout(10000),
   });
   if (!r.ok) throw new Error(`store ${r.status}`);
   return (await r.json()).result;
@@ -27,6 +28,7 @@ async function claim(key, ttlSec) {
   if (hasRemote()) return (await cmd(['SET', key, '1', 'NX', 'EX', String(ttlSec)])) === 'OK';
   if (memGet(key) !== undefined) return false;
   mem.set(key, '1');
+  if (ttlSec) expiry.set(key, Date.now() + ttlSec * 1000);
   return true;
 }
 async function release(key) {
@@ -46,17 +48,21 @@ async function getJSON(key) {
   const v = hasRemote() ? await cmd(['GET', key]) : memGet(key);
   return v ? JSON.parse(v) : null;
 }
+// INCR, and give the key its TTL if it has none, in one atomic script so a counter can't be left without expiry.
+const INCR_TTL = "local n = redis.call('INCR', KEYS[1]) if redis.call('TTL', KEYS[1]) < 0 then redis.call('EXPIRE', KEYS[1], ARGV[1]) end return n";
+
 // ttlSec (optional) starts the expiry window on the first increment.
 async function incr(key, ttlSec) {
   requireStore();
-  if (hasRemote()) {
-    // Create the key with its TTL first; INCR keeps an existing TTL, so the key can never be left without one.
-    if (ttlSec) await cmd(['SET', key, '0', 'NX', 'EX', String(ttlSec)]);
-    return cmd(['INCR', key]);
-  }
+  if (hasRemote()) return ttlSec ? cmd(['EVAL', INCR_TTL, '1', key, String(ttlSec)]) : cmd(['INCR', key]);
   const n = Number(memGet(key) || 0) + 1;
   mem.set(key, String(n));
   if (ttlSec && n === 1) expiry.set(key, Date.now() + ttlSec * 1000);
   return n;
 }
-module.exports = { claim, release, setJSON, getJSON, incr };
+// Current value of an incr() counter (0 when missing or expired).
+async function count(key) {
+  requireStore();
+  return Number((hasRemote() ? await cmd(['GET', key]) : memGet(key)) || 0);
+}
+module.exports = { claim, release, setJSON, getJSON, incr, count };

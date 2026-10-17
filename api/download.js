@@ -21,9 +21,10 @@ module.exports = async (req, res) => {
       const sub = await store.getJSON(`sub:${order.subscriptionId}`);
       if (!sub || !['active', 'trialing'].includes(sub.status)) return send(res, 403, { error: 'Subscription is not active' });
     }
-    // Count only downloads that actually get a URL, so failed checks don't use up the allowance.
+    // Build the URL first and count last, so failed checks or bad config don't use up the allowance.
+    const location = presignFromEnv(p.fileKey, p.filename, process.env, URL_TTL_SEC);
     if ((await store.incr(`dl:${id}`)) > MAX_DOWNLOADS) return send(res, 429, { error: 'Download limit reached. Contact support.' });
-    send(res, 302, '', { Location: presignFromEnv(p.fileKey, p.filename, process.env, URL_TTL_SEC) });
+    send(res, 302, '', { Location: location });
   } catch (e) {
     console.error('download', e.message);
     send(res, 500, { error: 'Download unavailable' });
