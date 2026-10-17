@@ -8,3 +8,9 @@ ecommerce-expert
 .vscode/
 .claude/
 *.md
+
+# Cloudflare Pages only
+functions/
+pages/
+dist/
+.wrangler/

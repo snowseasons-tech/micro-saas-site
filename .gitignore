@@ -17,3 +17,7 @@ products/lead-generator/**/data/
 products/lead-generator/**/logs/
 products/lead-generator/**/.pipeline.lock
 products/lead-generator/lead_pipeline.zip
+
+# Cloudflare Pages build output
+dist/
+.wrangler/
