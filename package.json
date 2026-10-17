@@ -10,13 +10,12 @@
     "lint": "node --check api/checkout.js && node --check api/webhook.js && node --check api/download.js && node --check api/order.js && node --check api/products.js && node --check api/portal.js && node --check api/login.js && node --check api/logout.js && node --check api/me.js && node --check api/app-download.js && node --check api/_lib/auth.js && node --check api/_lib/mail.js && node --check api/_lib/fulfil.js"
   },
   "dependencies": {
-    "stripe": "^17.0.0"
+    "stripe": "^23.0.0"
   },
   "description": "Storefront for [Snow Seasons Technologies](https://snowseasonstech.net): a static site plus Vercel serverless functions that sell digital products through Stripe Checkout, deliver files from a private S3/R2 bucket, and run a small customer portal.",
   "directories": {
     "test": "tests"
   },
-  "devDependencies": {},
   "repository": {
     "type": "git",
     "url": "git+https://github.com/snowseasons-tech/micro-saas-site.git"
