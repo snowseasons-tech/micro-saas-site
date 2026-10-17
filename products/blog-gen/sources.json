@@ -1,0 +1,46 @@
+{
+  "userAgent": "BlogGenBot/1.0 (+mailto:you@example.com)",
+  "delayMs": 2000,
+  "maxExcerptWords": 60,
+  "summarySentences": 3,
+  "outDir": "out",
+  "topics": [
+    {
+      "name": "Node.js Weekly Roundup",
+      "tags": [
+        "nodejs",
+        "javascript"
+      ],
+      "sources": [
+        {
+          "mode": "feed",
+          "url": "https://nodejs.org/en/feed/blog.xml",
+          "limit": 3
+        },
+        {
+          "mode": "index",
+          "url": "https://example.com/blog",
+          "linkSelector": "article h2 a",
+          "limit": 3
+        },
+        {
+          "mode": "page",
+          "url": "https://example.com/some-article"
+        }
+      ],
+      "commentaryFile": "commentary.example.md"
+    }
+  ],
+  "template": "template.md",
+  "publish": {
+    "hugo": {
+      "contentDir": "content/posts"
+    },
+    "wordpress": {
+      "url": "https://your-site.com"
+    },
+    "ghost": {
+      "url": "https://your-site.ghost.io"
+    }
+  }
+}

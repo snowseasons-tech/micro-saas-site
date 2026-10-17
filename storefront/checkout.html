@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Snow Seasons Tech · Checkout</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    body {
+      background: linear-gradient(180deg, #f5f8ff 0%, #edf3ff 100%);
+    }
+    .checkout-wrap {
+      width: min(1100px, calc(100% - 2rem));
+      margin: 2rem auto 4rem;
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 1.5rem;
+    }
+    .panel {
+      background: rgba(255,255,255,0.9);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      padding: 1.5rem;
+    }
+    .checkout-header {
+      margin-bottom: 1.5rem;
+    }
+    .checkout-header h1 {
+      margin: 0.2rem 0 0.35rem;
+      font-size: clamp(2rem, 4vw, 3rem);
+      letter-spacing: -0.05em;
+    }
+    .line {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 800;
+      color: var(--ink-soft);
+      margin-bottom: 0.5rem;
+    }
+    input, select {
+      width: 100%;
+      padding: 0.8rem 0.9rem;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+    }
+    .summary-item,
+    .totals-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.8rem 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .summary-item:last-of-type,
+    .totals-row:last-of-type {
+      border-bottom: none;
+    }
+    .summary-item strong {
+      display: block;
+      margin-bottom: 0.2rem;
+    }
+    .total {
+      font-size: 1.6rem;
+      font-weight: 800;
+      letter-spacing: -0.05em;
+    }
+    .btn-wide {
+      width: 100%;
+      margin-top: 1rem;
+      padding: 0.9rem 1rem;
+      border-radius: 14px;
+    }
+    .product-catalog {
+      grid-column: 1 / -1;
+    }
+    @media (max-width: 900px) {
+      .checkout-wrap {
+        grid-template-columns: 1fr;
+      }
+      .product-catalog {
+        grid-column: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="portal.html"><span class="brand-mark">SS</span>Snow Seasons Tech</a>
+    <nav>
+      <a href="portal.html#applications">Applications</a>
+      <a href="portal.html#guide">Deployment Guide</a>
+    </nav>
+    <a class="btn btn-small btn-outline" href="/#contact">Need help?</a>
+  </header>
+
+  <main class="checkout-wrap">
+    <section class="panel">
+      <div class="checkout-header">
+        <div class="eyebrow">SECURE CHECKOUT</div>
+        <h1>Choose your product</h1>
+        <p class="muted">You'll pay on Stripe's secure page. We never see or store your card details.</p>
+      </div>
+      <div id="products" role="radiogroup" aria-label="Products"><p class="muted">Loading prices…</p></div>
+    </section>
+
+    <aside class="panel">
+      <div class="checkout-header">
+        <div class="eyebrow">ORDER SUMMARY</div>
+        <h2 id="sum-name">Select a product</h2>
+      </div>
+      <div class="totals-row"><span class="total">Total</span><span class="total" id="sum-total">-</span></div>
+      <div class="totals-row"><span>Tax</span><span class="muted">Calculated at checkout</span></div>
+      <button class="btn btn-primary btn-wide" id="pay" type="button" disabled>Continue to secure payment</button>
+      <p class="muted" id="err" role="alert" style="margin-top:.75rem"></p>
+    </aside>
+  </main>
+  <script>
+  (function(){
+    var list=document.getElementById('products'),pay=document.getElementById('pay'),err=document.getElementById('err'),sel=null;
+    function money(p){return new Intl.NumberFormat('en-US',{style:'currency',currency:p.currency.toUpperCase()}).format(p.amount/100)+(p.interval?' / '+p.interval:'')}
+    function pick(p){sel=p;document.getElementById('sum-name').textContent=p.name;document.getElementById('sum-total').textContent=money(p);pay.disabled=false}
+    fetch('/api/products').then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error);return d})}).then(function(d){
+      list.textContent='';
+      if(!d.products||!d.products.length){list.textContent='No products are available right now.';return}
+      d.products.forEach(function(p,i){
+        var l=document.createElement('label');l.style.cssText='display:flex;gap:.75rem;align-items:center;padding:.9rem;border:1px solid var(--line);border-radius:12px;margin-bottom:.6rem;cursor:pointer';
+        var r=document.createElement('input');r.type='radio';r.name='product';r.style.width='auto';r.onchange=function(){pick(p)};
+        var t=document.createElement('span');t.textContent=p.name+' - '+money(p);
+        l.appendChild(r);l.appendChild(t);list.appendChild(l);
+        if(i===0){r.checked=true;pick(p)}
+      });
+    }).catch(function(){list.textContent='Could not load prices. Please refresh.'});
+    pay.addEventListener('click',function(){
+      if(!sel)return;pay.disabled=true;err.textContent='';
+      fetch('/api/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({productId:sel.id})})
+        .then(function(r){return r.json()}).then(function(d){if(d.url)location.href=d.url;else throw new Error(d.error||'Checkout failed')})
+        .catch(function(e){err.textContent=e.message;pay.disabled=false});
+    });
+  })();
+  </script>
+</body>
+</html>

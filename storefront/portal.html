@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snow Seasons Tech · Customer Workspace</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header class="topbar">
+        <a class="brand" href="#"><span class="brand-mark">SS</span>Snow Seasons Tech</a>
+        <nav>
+            <a href="#applications">Applications</a>
+            <a href="#guide">Deployment Guide</a>
+        </nav>
+        <button class="btn btn-small btn-outline" id="logout" hidden>Sign Out</button>
+    </header>
+
+    <main>
+        <!-- Auth & Workspace Hero -->
+        <section class="portal-hero">
+            <div>
+                <div class="eyebrow">SOFTWARE DELIVERY · PRIVATE CATALOG</div>
+                <h1>Your applications.<br>Ready for business.</h1>
+                <p class="muted">Versioned packages, release notes, and private downloads in one place.</p>
+                <div class="trust-row">
+                    <span>Private packages</span>
+                    <span>SHA-256 checksums</span>
+                    <span>Expiring download links</span>
+                </div>
+            </div>
+
+            <!-- Sign In Form -->
+            <form id="login" class="login-panel" method="post" action="/api/login">
+                <h2>Customer Sign In</h2>
+                <p class="muted">Use the account credentials provided by your administrator.</p>
+                <label>Email
+                    <input name="email" type="email" required autocomplete="username" maxlength="254">
+                </label>
+                <label>Password
+                    <input name="password" type="password" required autocomplete="current-password" maxlength="256">
+                </label>
+                <p id="login-msg" class="form-error" role="alert" hidden></p>
+                <button class="btn btn-primary" type="submit">Open My Workspace →</button>
+            </form>
+
+            <!-- Workspace Panel (Shown when authenticated) -->
+            <aside id="account" class="login-panel" hidden>
+                <div class="eyebrow">WORKSPACE</div>
+                <h2>Welcome Back</h2>
+                <p id="email-display"></p>
+                <p class="muted">Select an application below to review available releases.</p>
+            </aside>
+        </section>
+
+        <!-- Application Catalog -->
+        <section id="applications" class="section">
+            <div class="section-heading">
+                <div>
+                    <div class="eyebrow">YOUR APPLICATION CATALOG</div>
+                    <h2>Find your next release.</h2>
+                </div>
+                <p>Access is managed by your administrator. Download links expire after two minutes.</p>
+            </div>
+
+            <div class="toolbar">
+                <label>Search
+                    <input id="search" type="search" placeholder="Search applications..." disabled>
+                </label>
+                <label>Category
+                    <select id="category" disabled>
+                        <option value="">All Categories</option>
+                        <option value="billing">Billing & Finance</option>
+                        <option value="utilities">Developer Utilities</option>
+                    </select>
+                </label>
+            </div>
+
+            <div id="catalog" class="app-grid">
+                <p class="muted">Sign in to view the application catalog.</p>
+            </div>
+        </section>
+
+        <section id="products" class="section">
+            <div class="section-heading">
+                <div>
+                    <div class="eyebrow">SNOW SEASONS PRODUCTS</div>
+                    <h2>Choose your toolkit.</h2>
+                </div>
+                <p>Current prices, straight from our payment processor.</p>
+            </div>
+            <div id="product-grid" class="product-grid">
+                <p class="muted">Loading products…</p>
+            </div>
+        </section>
+
+        <!-- Deployment & Integrity Guide -->
+        <section id="guide" class="security-panel">
+            <div>
+                <div class="eyebrow">DEPLOY WITH CONFIDENCE</div>
+                <h2>Check, then install.</h2>
+                <p>Choose the correct platform and release channel. Compare your downloaded file’s SHA-256 checksum with the value shown in the catalog before running the installer.</p>
+            </div>
+            <div class="security-list">
+                <div>Windows <span><code>Get-FileHash package.zip -Algorithm SHA256</code></span></div>
+                <div>Linux <span><code>sha256sum package.zip</code></span></div>
+                <div>macOS <span><code>shasum -a 256 package.zip</code></span></div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <span>Snow Seasons Tech · Private Software Delivery Platform</span>
+        <span>Contact your administrator for access or installation support.</span>
+    </footer>
+    <script src="portal.js"></script>
+</body>
+</html>
