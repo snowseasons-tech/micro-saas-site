@@ -11,5 +11,20 @@
   },
   "dependencies": {
     "stripe": "^17.0.0"
-  }
+  },
+  "description": "Storefront for [Snow Seasons Technologies](https://snowseasonstech.net): a static site plus Vercel serverless functions that sell digital products through Stripe Checkout, deliver files from a private S3/R2 bucket, and run a small customer portal.",
+  "directories": {
+    "test": "tests"
+  },
+  "devDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/snowseasons-tech/micro-saas-site.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/snowseasons-tech/micro-saas-site/issues"
+  },
+  "homepage": "https://github.com/snowseasons-tech/micro-saas-site#readme"
 }
