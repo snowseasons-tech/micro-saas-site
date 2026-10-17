@@ -158,3 +158,13 @@ test('billing portal: session_id only triggers an email to the buyer; the emaile
     stripeMod.stripeClient = realStripe; mailMod.sendMail = realMail;
   }
 });
+
+test('changing the password ends existing sessions', async () => {
+  await store.setJSON('user:reset@example.com', { hash: await auth.hashPassword('old-password-123'), products: ['bookscan'] });
+  const cookie = cookieOf(await call(login, { method: 'POST', body: { email: 'reset@example.com', password: 'old-password-123' } }));
+  assert.strictEqual((await call(me, { headers: { cookie } })).statusCode, 200);
+  // what scripts/add-user.js does
+  await store.setJSON('user:reset@example.com', { hash: await auth.hashPassword('new-password-456'), products: ['bookscan'] });
+  assert.strictEqual((await call(me, { headers: { cookie } })).statusCode, 401);
+  assert.strictEqual((await call(appDownload, { url: '/api/app-download?product=bookscan', headers: { cookie } })).statusCode, 401);
+});

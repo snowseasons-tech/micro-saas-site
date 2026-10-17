@@ -1,6 +1,7 @@
 // Customer portal auth: admin-provisioned accounts, scrypt password hashes, opaque server-side sessions.
 // Account record  user:<email> = { hash, products: [catalogId, ...] }  (create with scripts/add-user.js)
-// Session record  sess:<sha256(token)> = { email }  (the raw token only ever lives in the HttpOnly cookie)
+// Session record  sess:<sha256(token)> = { email, cred }  (the raw token only ever lives in the HttpOnly cookie;
+//                 cred fingerprints the password hash, so changing the password ends existing sessions)
 const crypto = require('crypto');
 const store = require('./store');
 
@@ -62,23 +63,26 @@ async function recordLoginFailure(ip, email, s = store) {
   for (const [key] of limitKeys(ip, email)) await s.incr(key, LOGIN_WINDOW_SEC);
 }
 
-async function createSession(email, s = store) {
+const credOf = (user) => sha256(String(user.hash || ''));
+
+async function createSession(email, user, s = store) {
   const token = crypto.randomBytes(32).toString('base64url');
-  await s.setJSON(`sess:${sha256(token)}`, { email: normEmail(email), createdAt: Date.now() }, SESSION_TTL_SEC);
+  await s.setJSON(`sess:${sha256(token)}`, { email: normEmail(email), cred: credOf(user), createdAt: Date.now() }, SESSION_TTL_SEC);
   return token;
 }
 function readToken(req) {
   const m = String(req.headers.cookie || '').match(new RegExp(`(?:^|;\\s*)${COOKIE}=([A-Za-z0-9_-]{20,100})`));
   return m ? m[1] : null;
 }
-// Resolves the signed-in account, or null. Dropped accounts lose access immediately.
+// Resolves the signed-in account, or null. Dropped accounts and changed passwords end sessions immediately.
 async function getSession(req, s = store) {
   const token = readToken(req);
   if (!token) return null;
   const sess = await s.getJSON(`sess:${sha256(token)}`);
   if (!sess) return null;
   const user = await s.getJSON(`user:${sess.email}`);
-  return user ? { email: sess.email, products: user.products || [] } : null;
+  if (!user || sess.cred !== credOf(user)) return null;
+  return { email: sess.email, products: user.products || [] };
 }
 async function destroySession(req, s = store) {
   const token = readToken(req);

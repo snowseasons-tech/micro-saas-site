@@ -79,10 +79,12 @@ async function processEvent(event, s, catalog, mailer) {
 }
 
 // Keeps subscription status current; ignores events older than the last one applied.
+// Canceled is terminal in Stripe, so a late or same-second update can never bring a subscription back.
 async function applySubscription(event, s) {
   const sub = event.data.object;
   const existing = await s.getJSON(`sub:${sub.id}`);
   if (existing && existing.lastEventAt && existing.lastEventAt > event.created) return 'stale';
+  if (existing && existing.status === 'canceled' && event.type !== 'customer.subscription.deleted') return 'stale';
   const item = sub.items && sub.items.data && sub.items.data[0];
   await s.setJSON(`sub:${sub.id}`, {
     ...(existing || {}),

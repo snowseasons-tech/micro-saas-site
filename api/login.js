@@ -18,7 +18,7 @@ module.exports = async (req, res) => {
       await auth.recordLoginFailure(ip, email);
       return send(res, 401, { error: 'Incorrect email or password' });
     }
-    const token = await auth.createSession(email);
+    const token = await auth.createSession(email, user);
     send(res, 200, { email }, { 'Set-Cookie': auth.sessionCookie(token) });
   } catch (e) {
     console.error('login', e.message);

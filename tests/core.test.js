@@ -100,3 +100,11 @@ test('a failed release does not block the retry for long', async () => {
   await assert.rejects(handleEvent(e, { store: flaky }), /store down/);
   await assert.rejects(handleEvent(e), /being processed/); // lease still held, so Stripe gets a 500 and retries
 });
+
+test('a same-second update after deletion cannot reactivate a canceled subscription', async () => {
+  const subOf = (id, type, status) => ({ id, type, created: 500,
+    data: { object: { id: 'sub_c1', customer: 'cus_c', status, cancel_at_period_end: false, metadata: { product_id: 'sub1' }, items: { data: [{ current_period_end: 999 }] } } } });
+  await handleEvent(subOf('evt_c1', 'customer.subscription.deleted', 'canceled'), deps);
+  assert.strictEqual(await handleEvent(subOf('evt_c2', 'customer.subscription.updated', 'active'), deps), 'stale');
+  assert.strictEqual((await store.getJSON('sub:sub_c1')).status, 'canceled');
+});
