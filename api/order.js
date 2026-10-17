@@ -10,7 +10,8 @@ module.exports = async (req, res) => {
   try {
     const order = await store.getJSON(`order:${id}`);
     if (!order) return send(res, 200, { ready: false });
-    const p = CATALOG[order.productId];
+    const p = Object.prototype.hasOwnProperty.call(CATALOG, order.productId) ? CATALOG[order.productId] : null;
+    if (!p) return send(res, 410, { error: 'This product is no longer available. Contact support.' });
     send(res, 200, { ready: true, product: p.name, download: !!p.fileKey, appUrl: p.appUrl || null, manage: !!order.customer && !!order.subscriptionId });
   } catch (e) {
     console.error('order', e.message);

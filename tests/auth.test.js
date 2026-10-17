@@ -71,3 +71,34 @@ test('in-memory store honours TTLs', async () => {
   await new Promise((r) => setTimeout(r, 1100));
   assert.strictEqual(await store.getJSON('ttl:x'), null);
 });
+
+const download = require('../api/download');
+
+test('session download: failed checks do not use up the allowance; removed products return 410', async () => {
+  const sid = 'cs_test_dlcount000001';
+  await store.setJSON(`order:${sid}`, { productId: 'bookscan', subscriptionId: 'sub_gone' });
+  for (let i = 0; i < 12; i++) assert.strictEqual((await call(download, { url: `/api/download?session_id=${sid}` })).statusCode, 403);
+  await store.setJSON('sub:sub_gone', { status: 'active' });
+  const ok = await call(download, { url: `/api/download?session_id=${sid}` });
+  assert.strictEqual(ok.statusCode, 302);
+  assert.match(ok.headers.location, /X-Amz-Expires=300/);
+
+  const old = 'cs_test_removed000001';
+  await store.setJSON(`order:${old}`, { productId: 'retired-product' });
+  assert.strictEqual((await call(download, { url: `/api/download?session_id=${old}` })).statusCode, 410);
+  assert.strictEqual((await call(require('../api/order'), { url: `/api/order?session_id=${old}` })).statusCode, 410);
+});
+
+test('remote incr sets the TTL before incrementing', async () => {
+  const sent = [];
+  const realFetch = global.fetch;
+  Object.assign(process.env, { UPSTASH_REDIS_REST_URL: 'https://kv.example.com', UPSTASH_REDIS_REST_TOKEN: 't' });
+  global.fetch = async (_u, o) => { sent.push(JSON.parse(o.body)); return { ok: true, json: async () => ({ result: sent.length === 1 ? 'OK' : 1 }) }; };
+  try {
+    assert.strictEqual(await store.incr('rl:x', 900), 1);
+    assert.deepStrictEqual(sent, [['SET', 'rl:x', '0', 'NX', 'EX', '900'], ['INCR', 'rl:x']]);
+  } finally {
+    global.fetch = realFetch;
+    delete process.env.UPSTASH_REDIS_REST_URL; delete process.env.UPSTASH_REDIS_REST_TOKEN;
+  }
+});

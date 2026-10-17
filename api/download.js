@@ -14,13 +14,15 @@ module.exports = async (req, res) => {
   try {
     const order = await store.getJSON(`order:${id}`);
     if (!order) return send(res, 403, { error: 'No verified purchase for this session' });
-    if ((await store.incr(`dl:${id}`)) > MAX_DOWNLOADS) return send(res, 429, { error: 'Download limit reached. Contact support.' });
-    const p = CATALOG[order.productId];
+    const p = Object.prototype.hasOwnProperty.call(CATALOG, order.productId) ? CATALOG[order.productId] : null;
+    if (!p) return send(res, 410, { error: 'This product is no longer available. Contact support.' });
     if (!p.fileKey) return send(res, 404, { error: 'Nothing to download for this product' });
     if (order.subscriptionId) {
       const sub = await store.getJSON(`sub:${order.subscriptionId}`);
       if (!sub || !['active', 'trialing'].includes(sub.status)) return send(res, 403, { error: 'Subscription is not active' });
     }
+    // Count only downloads that actually get a URL, so failed checks don't use up the allowance.
+    if ((await store.incr(`dl:${id}`)) > MAX_DOWNLOADS) return send(res, 429, { error: 'Download limit reached. Contact support.' });
     send(res, 302, '', { Location: presignFromEnv(p.fileKey, p.filename, process.env, URL_TTL_SEC) });
   } catch (e) {
     console.error('download', e.message);

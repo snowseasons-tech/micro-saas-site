@@ -22,6 +22,7 @@
    if(d.appUrl){app.href=d.appUrl;app.hidden=false}
    if(d.manage){mg.hidden=false;mg.onclick=function(){fetch('/api/portal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:id})}).then(function(r){return r.json()}).then(function(x){if(x.url)location.href=x.url;else m.textContent=x.error||'Could not open billing portal'})}}
    return}
+   if(d.error){t.textContent='Order problem';m.textContent=d.error;return}
    if(++tries>30){t.textContent='Still processing';m.textContent='Your payment may still be clearing. Refresh in a minute, or email info@snowseasonstech.net with your receipt.';return}
    setTimeout(poll,2000)
   }).catch(function(){m.textContent='Could not check your order. Refresh to retry.'})

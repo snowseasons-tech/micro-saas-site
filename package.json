@@ -10,7 +10,6 @@
     "lint": "node --check api/checkout.js && node --check api/webhook.js && node --check api/download.js && node --check api/order.js && node --check api/products.js && node --check api/portal.js && node --check api/login.js && node --check api/logout.js && node --check api/me.js && node --check api/app-download.js && node --check api/_lib/auth.js && node --check api/_lib/mail.js && node --check api/_lib/fulfil.js"
   },
   "dependencies": {
-    "@vercel/blob": "^2.8.2",
     "stripe": "^17.0.0"
   }
 }

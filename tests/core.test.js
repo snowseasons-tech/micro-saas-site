@@ -76,3 +76,12 @@ test('mail failure releases claims so Stripe retry re-sends', async () => {
 test('mail module skips without config', async () => {
   assert.strictEqual(await require('../api/_lib/mail').sendMail({ to: 'a@b.co', subject: 's', text: 't' }, {}), 'skipped');
 });
+
+test('presigned PUT signs the PUT method for the configured bucket', () => {
+  const { presignPutFromEnv, presignFromEnv } = require('../api/_lib/sigv4');
+  const env = { S3_ENDPOINT: 'https://r2.example.com', S3_BUCKET: 'b', S3_ACCESS_KEY_ID: 'k', S3_SECRET_ACCESS_KEY: 's' };
+  const put = presignPutFromEnv('bookscan-live/bookscan-live.html', env);
+  assert.match(put, /^https:\/\/r2\.example\.com\/b\/bookscan-live\/bookscan-live\.html\?/);
+  const sig = (u) => new URL(u).searchParams.get('X-Amz-Signature');
+  assert.notStrictEqual(sig(put), sig(presignFromEnv('bookscan-live/bookscan-live.html', 'x.html', env)));
+});

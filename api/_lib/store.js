@@ -50,9 +50,9 @@ async function getJSON(key) {
 async function incr(key, ttlSec) {
   requireStore();
   if (hasRemote()) {
-    const n = await cmd(['INCR', key]);
-    if (ttlSec && n === 1) await cmd(['EXPIRE', key, String(ttlSec)]);
-    return n;
+    // Create the key with its TTL first; INCR keeps an existing TTL, so the key can never be left without one.
+    if (ttlSec) await cmd(['SET', key, '0', 'NX', 'EX', String(ttlSec)]);
+    return cmd(['INCR', key]);
   }
   const n = Number(memGet(key) || 0) + 1;
   mem.set(key, String(n));
