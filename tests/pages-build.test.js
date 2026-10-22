@@ -12,7 +12,11 @@ const list = (dir, base = dir) => fs.readdirSync(dir, { withFileTypes: true })
 test('dist contains only the public site', () => {
   const out = build({ root, out: fs.mkdtempSync(path.join(os.tmpdir(), 'dist-')) });
   const files = list(out).sort();
-  assert.deepStrictEqual(files, ['404.html', '_headers', 'index.html', 'page.css', 'privacy.html']);
+  const hasPosts = fs.readdirSync(path.join(root, 'blog', 'posts')).some((f) => f.endsWith('.md'));
+  const blog = hasPosts ? files.filter((f) => f.startsWith('blog/')) : ['blog/index.html'];
+  assert.deepStrictEqual(files.filter((f) => !f.startsWith('blog/')), ['404.html', '_headers', 'index.html', 'page.css', 'privacy.html', 'sitemap.xml']);
+  assert.deepStrictEqual(files.filter((f) => f.startsWith('blog/')), blog);
+  assert.ok(!files.some((f) => f.endsWith('.md')), 'Markdown sources are never published');
 });
 
 test('dist is rebuilt from scratch and fails on a missing index', () => {
