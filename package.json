@@ -7,13 +7,10 @@
   },
   "scripts": {
     "test": "node --test tests/*.test.js",
-    "lint": "node --check api/checkout.js && node --check api/webhook.js && node --check api/download.js && node --check api/order.js && node --check api/products.js && node --check api/portal.js && node --check api/login.js && node --check api/logout.js && node --check api/me.js && node --check api/app-download.js && node --check api/_lib/auth.js && node --check api/_lib/mail.js && node --check api/_lib/fulfil.js",
+    "lint": "node --check api/_lib/store.js && node --check api/_lib/mail.js && node --check scripts/build-pages.js && node --check functions/api/contact.js",
     "build:pages": "node scripts/build-pages.js"
   },
-  "dependencies": {
-    "stripe": "^23.0.0"
-  },
-  "description": "Storefront for [Snow Seasons Technologies](https://snowseasonstech.net): a static site plus Vercel serverless functions that sell digital products through Stripe Checkout, deliver files from a private S3/R2 bucket, and run a small customer portal.",
+  "description": "Consulting and custom-build site for Snow Seasons Technologies: a static site on Cloudflare Pages with a contact form Function.",
   "directories": {
     "test": "tests"
   },

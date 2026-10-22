@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// Builds dist/ for Cloudflare Pages from an allowlist, so products/, private-files/, api/, scripts/, tests/
-// and env files can never be published. Functions are picked up from functions/ at the project root.
+// Builds dist/ for Cloudflare Pages from an allowlist, so api/, scripts/, tests/ and env files can never be
+// published. Functions are picked up from functions/ at the project root.
 const fs = require('fs');
 const path = require('path');
 
-const PUBLIC_DIRS = ['storefront'];
+const PUBLIC_DIRS = [];
 const PUBLIC_FILES = ['page.css'];
 const isPublic = (name) => !name.startsWith('.') && !name.endsWith('.md');
 

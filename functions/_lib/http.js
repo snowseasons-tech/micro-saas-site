@@ -1,6 +1,6 @@
 import { SECURITY_HEADERS } from './headers.js';
 
-// Response helpers for Cloudflare Pages Functions (the Vercel equivalents live in api/_lib/http.js).
+// Response helpers for Cloudflare Pages Functions.
 export function send(code, body, headers = {}) {
   const isObj = body !== null && typeof body === 'object';
   return new Response(isObj ? JSON.stringify(body) : body || '', {
@@ -16,8 +16,4 @@ export function send(code, body, headers = {}) {
 // Fallback for any method the route doesn't export a specific handler for.
 export const methodNotAllowed = (method) => () => send(405, { error: 'Method not allowed' }, { Allow: method });
 
-export function getCookie(request, name) {
-  const m = (request.headers.get('Cookie') || '').match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`));
-  return m ? m[1] : null;
-}
 export const clientIp = (request) => request.headers.get('CF-Connecting-IP') || 'unknown';
