@@ -1,6 +1,8 @@
 # micro-saas-site
 
-Storefront for [Snow Seasons Technologies](https://snowseasonstech.net): a static site plus Vercel serverless functions that sell digital products through Stripe Checkout, deliver files from a private S3/R2 bucket, and run a small customer portal.
+Consulting and custom-build site for [Snow Seasons Technologies](https://snowseasonstech.net). The homepage presents services and takes project inquiries through `/api/contact`; ready-made products are sold at [snowseasonstech.store](https://snowseasonstech.store).
+
+The repo still carries the original storefront backend (Stripe Checkout, private S3/R2 delivery, customer portal), described below. The homepage no longer links to it.
 
 ## How it works
 
@@ -14,7 +16,8 @@ Storefront for [Snow Seasons Technologies](https://snowseasonstech.net): a stati
 
 | Path | What it is |
 |---|---|
-| `index.html`, `privacy.html`, `terms.html`, `refund.html`, `success.html`, `cancel.html`, `page.css` | Public site pages |
+| `index.html` | Consulting and custom-build homepage: services, process, work (links to the store), FAQ and the project inquiry form |
+| `privacy.html`, `terms.html`, `refund.html`, `success.html`, `cancel.html`, `page.css` | Public site pages |
 | `storefront/` | Checkout page and customer portal (`portal.html`, `portal.js`) |
 | `api/` | Vercel serverless functions (one file per endpoint) |
 | `api/_lib/` | Shared helpers: catalog, Stripe, store (Upstash/in-memory), auth, mail (Resend), fulfilment, SigV4 presigning |
@@ -34,6 +37,7 @@ Storefront for [Snow Seasons Technologies](https://snowseasonstech.net): a stati
 | `/api/portal` | POST / GET | POST `{ session_id }` emails a billing portal link; GET `?t=` opens it |
 | `/api/login`, `/api/logout`, `/api/me` | POST / POST / GET | Customer portal sign-in (JSON only, `HttpOnly; SameSite=Strict` cookie) |
 | `/api/app-download` | GET | `?product=` signed download for a signed-in, entitled account |
+| `/api/contact` | POST | Project inquiry form: emails `CONTACT_TO` with Reply-To set to the sender (honeypot, 5 per IP per hour) |
 
 ## Setup
 
@@ -59,7 +63,8 @@ Set these in Vercel (and in `.env.local` for local work, which is gitignored).
 | `PRICE_BOOKSCAN`, … | Stripe Price IDs, one per product (`priceEnv` in `api/_lib/catalog.js`) |
 | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | Order, session and rate-limit store. Required in production |
 | `S3_ENDPOINT`, `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | Private bucket for deliverables (S3 or Cloudflare R2; region defaults to `auto`) |
-| `RESEND_API_KEY`, `MAIL_FROM` | Order and billing portal emails. Without them, emails are skipped and the billing portal link can't be sent |
+| `RESEND_API_KEY`, `MAIL_FROM` | Order, billing portal and contact form emails. Without them, emails are skipped and the billing portal link can't be sent |
+| `CONTACT_TO` | Inbox that receives contact form inquiries. Without it the form answers 503 and asks visitors to email instead |
 
 ### Stripe
 
