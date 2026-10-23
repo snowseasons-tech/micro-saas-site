@@ -3,12 +3,13 @@
 // published. Functions are picked up from functions/ at the project root.
 const fs = require('fs');
 const path = require('path');
+const { buildBlog } = require('./build-blog');
 
 const PUBLIC_DIRS = [];
 const PUBLIC_FILES = ['page.css'];
 const isPublic = (name) => !name.startsWith('.') && !name.endsWith('.md');
 
-function build({ root = path.join(__dirname, '..'), out = path.join(root, 'dist') } = {}) {
+function build({ root = path.join(__dirname, '..'), out = path.join(root, 'dist'), now } = {}) {
   fs.rmSync(out, { recursive: true, force: true });
   fs.mkdirSync(out, { recursive: true });
   const copy = (rel) => {
@@ -20,6 +21,7 @@ function build({ root = path.join(__dirname, '..'), out = path.join(root, 'dist'
   if (!pages.includes('index.html')) throw new Error('missing index.html');
   [...pages, ...PUBLIC_FILES, ...PUBLIC_DIRS].forEach(copy);
   fs.copyFileSync(path.join(root, 'pages', '_headers'), path.join(out, '_headers'));
+  buildBlog({ root, out, ...(now === undefined ? {} : { now }) });
   return out;
 }
 

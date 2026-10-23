@@ -1,0 +1,25 @@
+# Rebuilds the Cloudflare Pages site every morning, so blog posts dated in the future (blog/posts/) go live on
+# their date: the build only publishes posts whose date has passed. Needs a Cloudflare Pages deploy hook URL in
+# the repository secret CLOUDFLARE_DEPLOY_HOOK (Pages project > Settings > Builds > Deploy hooks).
+name: Daily rebuild for scheduled posts
+
+on:
+  schedule:
+    - cron: "30 13 * * *" # 6:30 AM MST / 7:30 AM MDT, after posts dated 6:00 AM Mountain
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger the Cloudflare Pages deploy hook
+        env:
+          HOOK: ${{ secrets.CLOUDFLARE_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "::warning::CLOUDFLARE_DEPLOY_HOOK is not set, so scheduled posts won't go live on their date"
+            exit 0
+          fi
+          curl --fail --silent --show-error -X POST "$HOOK"

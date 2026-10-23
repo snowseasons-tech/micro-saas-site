@@ -13,6 +13,10 @@ Consulting and custom-build site for [Snow Seasons Technologies](https://snowsea
 | `api/_lib/` | Shared helpers: `store.js` (Upstash Redis, in-memory for tests) and `mail.js` (Resend) |
 | `pages/_headers` | Security headers for static files (copied into `dist/` by the build) |
 | `scripts/build-pages.js` | Builds `dist/` from an allowlist of public files |
+| `scripts/build-blog.js` | Builds `/blog/` (landing page), `/blog/<slug>/` and `sitemap.xml` from `blog/posts/*.md`, publishing each post once its date has passed |
+| `blog/posts/` | Posts exported from MariaDB by the `mariadb-auto-blogger` skill (`.claude/skills/`). Don't edit by hand |
+| `functions/blog-img/` | `GET /blog-img/<key>`: 302 to a presigned URL on the private R2 bucket that expires after `BLOG_IMAGE_TTL` seconds |
+| `.github/workflows/daily-rebuild.yml` | Calls the Pages deploy hook every morning so scheduled posts go live on their date |
 | `tests/` | `node:test` suite |
 
 ## Setup
@@ -34,7 +38,13 @@ Set these in the Cloudflare Pages project (and in `.env.local` for local work, w
 | `CONTACT_TO` | Inbox that receives inquiries. Without it the form answers 503 and asks visitors to email instead |
 | `RESEND_API_KEY`, `MAIL_FROM` | Sends the inquiry email. `MAIL_FROM` must be on a domain verified in Resend |
 | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | Optional: per-IP rate limit for the form. Without them the form still works but isn't rate-limited |
+| `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` | Blog images: a **read-only** R2 token for the private bucket. Without them `/blog-img/` answers 503 |
+| `BLOG_IMAGE_TTL` | Optional: lifetime of the signed image links in seconds (default 3600) |
+
+## Blog
+
+Posts are written, scheduled and published with the `mariadb-auto-blogger` Claude Code skill: see `.claude/skills/mariadb-auto-blogger/SKILL.md` for setup (database, R2 images, deploy hook) and the workflow. To preview the blog as of a date: `BLOG_BUILD_TIME=2026-11-02T08:00:00-07:00 npm run build:pages`.
 
 ## Deployment
 
-Cloudflare Pages, with build command `npm run build:pages` and output directory `dist`. Functions are picked up from `functions/`. They need the `nodejs_compat` compatibility flag, because `api/_lib/` uses `process.env`. `scripts/build-pages.js` copies only the site pages, `page.css` and `_headers` into `dist/`, so source, scripts, tests and Markdown are never published.
+Cloudflare Pages, with build command `npm run build:pages` and output directory `dist`. Functions are picked up from `functions/`. They need the `nodejs_compat` compatibility flag, because `api/_lib/` uses `process.env`. `scripts/build-pages.js` copies only the site pages, `page.css` and `_headers` into `dist/` and renders the blog, so source, scripts, tests and Markdown are never published. Add the `CLOUDFLARE_DEPLOY_HOOK` repository secret (a Pages deploy hook URL) so scheduled posts go live without a push.
