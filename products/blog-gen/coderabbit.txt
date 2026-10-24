@@ -1,0 +1,26 @@
+#!/bin/env codeRabbit
+-Bug detection
+    Spot potential runtime errors, null pointer exceptions, race conditions, and logic flaws before deployment
+-One-click fixes
+    Apply suggested changes directly to your PR with a single click—no copy-paste, no switching contexts
+-Smart suggestions
+    Get context-aware refactoring recommendations based on your entire codebase, not just the changed lines
+-Continuous improvements
+    CodeRabbit remembers your feedback and applies it to future reviews, getting smarter with each PR
+
+-CodeRabbit reviews new pull requests automatically and updates its feedback as you push new commits—focusing on what changed.
+    
+    New PRs: Full analysis of all changes with detailed findings
+    New commits: Incremental reviews that track what’s new since the last review
+    Every update: Fresh insights without repeating resolved comments
+
+-Zero config to start: just open a PR and get the results! This documentation will guide you through review instructions, focus areas, and review style tuning to make the outcome even better.
+
+-Behind each comment lies:
+
+    Sandboxed cloud execution with your full repository cloned for isolated analysis
+    Multi-dimensional code analysis combining 50+ static analyzers, linters and SAST tools
+    Agentic exploration that autonomously investigates your codebase for context
+    Specialized AI agents working in parallel: Review, Verification, Chat, Pre-Merge Checks, and Finishing Touches
+    Living memory that learns from your feedback, PRs, issues, and coding guidelines
+    Enterprise integrations connecting your entire development workflow
